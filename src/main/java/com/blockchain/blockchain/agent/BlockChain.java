@@ -1,89 +1,103 @@
 package com.blockchain.blockchain.agent;
 
-
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
 /*
- * Classe que representa a blockchain. Ela é composta por uma lista de blocos e um objeto de bloqueio para garantir a consistência dos dados.
- * A classe fornece métodos para adicionar blocos à blockchain, verificar se a blockchain está vazia, obter o último bloco da blockchain,
- * obter o tamanho da blockchain, obter a lista de blocos da blockchain e definir a lista de blocos da blockchain.
+ * Classe que representa uma blockchain, que é uma lista encadeada de blocos.
+ * Implementa Serializable para permitir a serialização dos objetos.
  */
-public class BlockChain {
+public class BlockChain implements Serializable {
 
-    private List<Block> blocks = new LinkedList<>();  // lista de blocos da blockchain (LinkedList é uma implementação de lista que é mais eficiente para adicionar e remover elementos no início e no final da lista)
+    private List<Block> blocks = new LinkedList<>(); // Lista de blocos da blockchain
+    private Object lock = new Object(); // Objeto de bloqueio para operações sincronizadas
 
-    private Object lock = new Object();  // objeto de bloqueio para garantir a consistência dos dados (o objeto de bloqueio é usado para garantir que as operações na lista de blocos sejam atômicas)
-
-    public BlockChain(Block root)
-    {
-        add(root);  // adiciona o bloco raiz à blockchain
+    /*
+     * Construtor da classe BlockChain.
+     * Inicializa a blockchain com o bloco raiz especificado.
+     */
+    public BlockChain(Block root) {
+        add(root); // Adiciona o bloco raiz à blockchain
     }
 
-    public void add(Block block){
-        synchronized (lock){  // método que adiciona um bloco à blockchain. O synchronized é usado para garantir que a operação seja atômica.
-            blocks.add(block);  // adiciona o bloco à lista de blocos
+    /*
+     * Método para adicionar um bloco à blockchain de forma segura.
+     * Utiliza sincronização para garantir operações atômicas.
+     */
+    public void add(Block block) {
+        synchronized (lock) {
+            blocks.add(block);
         }
     }
 
-    public void add(LinkedList<Block> blockList){  // método que adiciona uma lista de blocos à blockchain
-
+    /*
+     * Método para adicionar uma lista de blocos à blockchain, evitando duplicatas.
+     * Utiliza sincronização para garantir operações atômicas.
+     */
+    public void add(List<Block> blockList) {
         synchronized (lock) {
-
-            for (Block block: blockList) {    // percorre a lista de blocos
-                boolean find = false;   // verifica se o bloco já está na blockchain
-
-                for(Block old: blocks){  // verifica se o bloco já está na blockchain comparando o hash
-
-                    if(old.getHash().equals(block.getHash())){  // se o bloco já está na blockchain, sai do loop e não adiciona o bloco
-                        find = true;
+            for (Block block : blockList) {
+                boolean found = false;
+                for (Block old : blocks) {
+                    if (old.getHash().equals(block.getHash())) {
+                        found = true;
                         break;
                     }
                 }
-
-                if (find){  // se o bloco já está na blockchain, não adiciona o bloco
-                    continue;
+                if (!found) {
+                    blocks.add(block);
                 }
-                blocks.add(block);  // adiciona o bloco à lista de blocos
             }
         }
     }
 
-    public boolean isEmpty(){
-        synchronized (lock){  // método que verifica se a blockchain está vazia. O synchronized é usado para garantir que a operação seja atômica.
-            return blocks.isEmpty();  // verifica se a lista de blocos está vazia
-        }
+    /*
+     * Verifica se a blockchain está vazia.
+     */
+    public boolean isEmpty() {
+        return blocks.isEmpty();
     }
 
-    public Block getLatestBlock(){
-        synchronized (lock){
-            return blocks.get(blocks.size() - 1);
-        }
+    /*
+     * Obtém o último bloco adicionado à blockchain.
+     */
+    public Block getLatestBlock() {
+        return blocks.get(blocks.size() - 1);
     }
 
-    public int size(){
-        synchronized (lock){  // método que retorna o tamanho da blockchain. O synchronized é usado para garantir que a operação seja atômica.
-            return blocks.size();
-        }
+    /*
+     * Retorna o tamanho atual da blockchain.
+     */
+    public int size() {
+        return blocks.size();
     }
 
-    public List<Block> getBlocks(){
-        synchronized (lock){
-            return blocks;
-        }
+    /*
+     * Retorna a lista de todos os blocos da blockchain.
+     */
+    public List<Block> getBlocks() {
+        return blocks;
     }
 
-    public void setBlocks(List<Block> blocks){
-        synchronized (lock){
-            this.blocks = blocks;
-        }
+    /*
+     * Define a lista de blocos da blockchain.
+     */
+    public void setBlocks(List<Block> blocks) {
+        this.blocks = blocks;
     }
 
-    public Object getLock(){
+    /*
+     * Retorna o objeto de bloqueio utilizado para sincronização.
+     */
+    public Object getLock() {
         return lock;
     }
 
-    public void setLock(Object lock){
+    /*
+     * Define o objeto de bloqueio utilizado para sincronização.
+     */
+    public void setLock(Object lock) {
         this.lock = lock;
     }
 }
