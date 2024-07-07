@@ -1,64 +1,91 @@
 package com.blockchain.blockchain.agent;
 
-
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Essa classe é responsável por gerenciar os agentes. Nela é possível adicionar, buscar e deletar agentes.
+ * A classe AgentManager é responsável por gerenciar os agentes na rede blockchain.
+ * Permite adicionar, buscar, deletar agentes e criar blocos para agentes específicos.
  */
-
 public class AgentManager {
 
-    private List<Agent> agents = new ArrayList<>();  // lista de agentes
-    private static final Block root = new Genesis();  // bloco raiz da blockchain
+    private List<Agent> agents = new ArrayList<>();  // Lista de agentes na rede
+    private static final Block root = new Genesis();  // Bloco raiz da blockchain
 
-    public Agent addAgent(String name, int port){
-        Agent a = new Agent(name, "localhost", port, root, agents);  // cria um novo agente
-        a.startHost();  // inicia o agente (inicia o servidor)
-        a.startMine(); // inicia a mineração do agente
-        agents.add(a);
-
-        return a;
+    /**
+     * Adiciona um novo agente à rede.
+     *
+     * @param name Nome do agente
+     * @param port Porta na qual o agente será executado
+     * @return O agente criado
+     */
+    public Agent addAgent(String name, int port) {
+        Agent agent = new Agent(name, "localhost", port, root, agents);  // Cria um novo agente
+        agent.startHost();  // Inicia o servidor do agente
+        agent.startMine();  // Inicia a mineração do agente
+        agents.add(agent);  // Adiciona o agente à lista de agentes
+        return agent;
     }
 
-    public Agent getAgent(String name){
-        for (Agent a: agents){
-            if (a.getName().equals(name)){
-                return a;
+    /**
+     * Retorna um agente específico pelo nome.
+     *
+     * @param name Nome do agente a ser buscado
+     * @return O agente encontrado, ou null se não encontrado
+     */
+    public Agent getAgent(String name) {
+        for (Agent agent : agents) {
+            if (agent.getName().equals(name)) {
+                return agent;
             }
         }
         return null;
     }
 
-    public List<Agent> getAllAgents(){
+    /**
+     * Retorna todos os agentes na rede.
+     *
+     * @return Lista contendo todos os agentes na rede
+     */
+    public List<Agent> getAllAgents() {
         return agents;
     }
 
-    public void deleteAgent(String name){
-        final Agent a = getAgent(name);
-
-        if (a != null){
-            a.startHost();
-            agents.remove(a);
+    /**
+     * Deleta um agente da rede pelo nome.
+     *
+     * @param name Nome do agente a ser deletado
+     */
+    public void deleteAgent(String name) {
+        Agent agent = getAgent(name);
+        if (agent != null) {
+            agent.stopHost();  // Para o servidor do agente
+            agents.remove(agent);  // Remove o agente da lista
         }
     }
 
-
-    public void deleteAllAgents(){  // método que deleta todos os agentes
-        for (Agent a: agents){
-            a.stopHost(); // para o servidor do agente. Temos que parar o servidor antes de parar o agente, pois o servidor pode estar bloqueado esperando por uma conexão.
+    /**
+     * Deleta todos os agentes da rede.
+     * Este método para todos os servidores antes de remover os agentes da lista.
+     */
+    public void deleteAllAgents() {
+        for (Agent agent : agents) {
+            agent.stopHost();  // Para o servidor do agente
         }
-        agents.clear();
+        agents.clear();  // Limpa a lista de agentes
     }
 
-    public Block createBlock(final String name){  // método que cria um bloco para um agente específico. O bloco é criado pelo agente com o nome especificado.
-        final Agent agent = getAgent(name);
-
-        if(agent != null){
-            return agent.creatBlock();  // cria um bloco para o agente
+    /**
+     * Cria um novo bloco para um agente específico na rede.
+     *
+     * @param name Nome do agente que criará o bloco
+     * @return O bloco criado pelo agente, ou null se o agente não foi encontrado
+     */
+    public Block createBlock(String name) {
+        Agent agent = getAgent(name);
+        if (agent != null) {
+            return agent.createBlock();  // Cria um bloco usando o agente especificado
         }
-
         return null;
     }
 }

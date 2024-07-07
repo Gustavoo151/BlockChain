@@ -1,11 +1,8 @@
 package com.blockchain.blockchain.agent;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -19,9 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.blockchain.blockchain.agent.Message.MESSAGE_TYPE.*;
 
-/*
- * Agent class é responsável por manter a conexão com
- * outros agentes e por manter a blockchain.
+/**
+ * Classe que representa um agente na rede blockchain.
+ * É responsável por manter a conexão com outros agentes e
+ * gerenciar a blockchain.
  */
 public class Agent {
 
@@ -30,14 +28,12 @@ public class Agent {
     private String address;
     private int port;
     private List<Agent> peers;
-
     private ServerSocket serverSocket;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(10);
-
     private boolean listening = true;
-
     private BlockChain blockChain;
 
+    // Fábrica de threads para sincronização
     private final ThreadFactory factory = new ThreadFactory() {
         private AtomicInteger cnt = new AtomicInteger(0);
 
@@ -47,12 +43,13 @@ public class Agent {
         }
     };
 
-    // for jackson
+    // Construtor vazio para uso com Jackson
     public Agent() {
         id = UUID.randomUUID().toString();
     }
 
-    Agent(final String name, final String address, final int port, final Block root, final List<Agent> agents) {
+    // Construtor principal para inicialização com parâmetros
+    Agent(String name, String address, int port, Block root, List<Agent> agents) {
         id = UUID.randomUUID().toString();
         this.name = name;
         this.address = address;
@@ -61,49 +58,60 @@ public class Agent {
         blockChain = new BlockChain(root);
     }
 
-
-    Block creatBlock() {
+    /**
+     * Cria um novo bloco na blockchain se válido.
+     * @return O bloco criado, ou null se não pôde criar.
+     */
+    Block createBlock() {
         if (blockChain.isEmpty()) {
             return null;
         }
-
         Block previousBlock = getLatestBlock();
         if (previousBlock == null) {
             return null;
         }
-
-        final int index = previousBlock.getIndex() + 1;
-        final Block block = new Block(index, previousBlock.getHash(), name);
-        System.out.println(String.format("%s created new block %s", name, block.toString()));
+        int index = previousBlock.getIndex() + 1;
+        Block block = new Block(index, previousBlock.getHash(), name);
+        System.out.println(String.format("%s criou um novo bloco %s", name, block.toString()));
         broadcast(INFO_NEW_BLOCK, block);
         addBlock(block);
         return block;
     }
 
+    /**
+     * Adiciona um bloco à blockchain se válido.
+     * @param block O bloco a ser adicionado.
+     */
     void addBlock(Block block) {
         if (isBlockValid(block)) {
             blockChain.add(block);
         }
     }
 
+    /**
+     * Inicia o servidor para aceitar conexões de outros agentes.
+     */
     void startHost() {
         executor.execute(() -> {
             try {
                 serverSocket = new ServerSocket(port);
-                System.out.println(String.format("Server %s started", serverSocket.getLocalPort()));
+                System.out.println(String.format("Servidor %s iniciado", serverSocket.getLocalPort()));
                 listening = true;
                 while (listening) {
-                    final AgentServerThread thread = new AgentServerThread(Agent.this, serverSocket.accept());
+                    AgentServerThread thread = new AgentServerThread(Agent.this, serverSocket.accept());
                     thread.start();
                 }
                 serverSocket.close();
             } catch (IOException e) {
-                System.err.println("Could not listen to port " + port);
+                System.err.println("Não foi possível escutar na porta " + port);
             }
         });
         broadcast(REQ_ALL_BLOCKS, null);
     }
 
+    /**
+     * Para o servidor de aceitação de conexões.
+     */
     void stopHost() {
         listening = false;
         try {
@@ -113,25 +121,32 @@ public class Agent {
         }
     }
 
+    /**
+     * Inicia o processo de mineração de novos blocos periodicamente.
+     */
     void startMine() {
         executor.execute(() -> {
             try {
-                while(true) {
-                    Block block = creatBlock();
-
+                while (true) {
+                    createBlock();
                     Thread.sleep(1000);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         });
-
     }
 
+    /**
+     * Retorna a lista de blocos da blockchain deste agente.
+     * @return Lista de blocos.
+     */
     @JsonIgnore
     public List<Block> getBlocks() {
         return blockChain.getBlocks();
     }
+
+    // Métodos privados auxiliares
 
     private Block getLatestBlock() {
         if (blockChain.isEmpty()) {
@@ -140,24 +155,24 @@ public class Agent {
         return blockChain.getLatestBlock();
     }
 
-    private boolean isBlockValid(final Block block) {
-        final Block latestBlock = getLatestBlock();
+    private boolean isBlockValid(Block block) {
+        Block latestBlock = getLatestBlock();
         if (latestBlock == null) {
             return false;
         }
-        final int expected = latestBlock.getIndex() + 1;
+        int expected = latestBlock.getIndex() + 1;
         if (block.getIndex() != expected) {
-            System.out.println(String.format("Invalid index. Expected: %s Actual: %s", expected, block.getIndex()));
+            System.out.println(String.format("Índice inválido. Esperado: %s Atual: %s", expected, block.getIndex()));
             return false;
         }
         if (!Objects.equals(block.getPreviousHash(), latestBlock.getHash())) {
-            System.out.println("Unmatched hash code");
+            System.out.println("Código hash não corresponde");
             return false;
         }
         return true;
     }
 
-    private void broadcast(Message.MESSAGE_TYPE type, final Block block) {
+    private void broadcast(Message.MESSAGE_TYPE type, Block block) {
         peers.forEach(peer -> sendMessage(peer, type, peer.getAddress(), peer.getPort(), block));
     }
 
@@ -165,16 +180,15 @@ public class Agent {
         if (agent.getId().equals(this.id)) {
             return;
         }
-        try (
+        try (Socket peer = new Socket(host, port);
+             ObjectOutputStream out = new ObjectOutputStream(peer.getOutputStream());
+             ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
 
-                final Socket peer = new Socket(host, port);
-                final ObjectOutputStream out = new ObjectOutputStream(peer.getOutputStream());
-                final ObjectInputStream in = new ObjectInputStream(peer.getInputStream())) {
             Object fromPeer;
             while ((fromPeer = in.readObject()) != null) {
                 if (fromPeer instanceof Message) {
-                    final Message msg = (Message) fromPeer;
-                    System.out.println(String.format("%d received: %s", this.port, msg.toString()));
+                    Message msg = (Message) fromPeer;
+                    System.out.println(String.format("%d recebeu: %s", this.port, msg.toString()));
                     if (READY == msg.type) {
                         out.writeObject(new Message.MessageBuilder()
                                 .withType(type)
@@ -183,16 +197,16 @@ public class Agent {
                                 .withBlocks(Arrays.asList(blocks)).build());
                     } else if (RSP_ALL_BLOCKS == msg.type) {
                         if (!msg.blocks.isEmpty() && this.blockChain.size() == 1) {
-                            blockChain.add((Block) msg.blocks);   // Talvez de erro
+                            blockChain.add((Block) msg.blocks);   // Pode causar erro
                         }
                         break;
                     }
                 }
             }
         } catch (UnknownHostException e) {
-            System.err.println(String.format("Unknown host %s %d", host, port));
+            System.err.println(String.format("Host desconhecido %s %d", host, port));
         } catch (IOException e) {
-            System.err.println(String.format("%s couldn't get I/O for the connection to %s. Retrying...%n", getPort(), port));
+            System.err.println(String.format("%s não conseguiu I/O para a conexão com %s. Tentando novamente...%n", getPort(), port));
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e1) {
@@ -203,6 +217,7 @@ public class Agent {
         }
     }
 
+    // Getters e Setters
 
     public int getPort() {
         return port;
